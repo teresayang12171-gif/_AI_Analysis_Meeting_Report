@@ -16,10 +16,12 @@ import {
   Share2,
   FileSpreadsheet,
   Clock,
-  Briefcase
+  Briefcase,
+  Cpu,
+  Zap
 } from "lucide-react";
 import MarkdownRenderer from "./components/MarkdownRenderer";
-import { GenerateSettings, GenerateResponse } from "./types";
+import { GenerateSettings, GenerateResponse, AIProvider } from "./types";
 
 // High-quality localized sample transcriptions for user testing
 const TEMPLATES = [
@@ -70,12 +72,33 @@ Ruby：沒問題，我已經聯繫好倉庫了，這週五 (5/29) 中午會全�
   }
 ];
 
+// AI Provider metadata
+const AI_PROVIDERS: { id: AIProvider; label: string; sublabel: string; model: string; color: string; badgeColor: string }[] = [
+  {
+    id: "gemini",
+    label: "Google Gemini",
+    sublabel: "速度快・精準強",
+    model: "gemini-2.5-flash-lite",
+    color: "indigo",
+    badgeColor: "bg-indigo-600",
+  },
+  {
+    id: "nvidia",
+    label: "NVIDIA NIM",
+    sublabel: "邊緣運算・低延遲",
+    model: "nemotron-mini-4b",
+    color: "green",
+    badgeColor: "bg-emerald-600",
+  },
+];
+
 export default function App() {
   const [transcript, setTranscript] = useState("");
   const [settings, setSettings] = useState<GenerateSettings>({
     outputStyle: "detailed",
     targetLanguage: "zh-TW",
     tone: "professional",
+    provider: "gemini",
   });
   const [isLoading, setIsLoading] = useState(false);
   const [response, setResponse] = useState<GenerateResponse | null>(null);
@@ -125,6 +148,7 @@ export default function App() {
         body: JSON.stringify({
           transcript,
           settings,
+          provider: settings.provider,
         }),
       });
 
@@ -177,6 +201,8 @@ export default function App() {
     return pct > 0 ? Math.round(pct) : 0;
   };
 
+  const activeProvider = AI_PROVIDERS.find((p) => p.id === settings.provider)!;
+
   return (
     <div className="min-h-screen bg-[#F3F4F6] text-slate-900 flex flex-col font-sans overflow-hidden">
       {/* Premium minimal header - Geometric Balance */}
@@ -193,6 +219,19 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            {/* Active provider badge in header */}
+            <span className={`hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${
+              settings.provider === "gemini"
+                ? "bg-indigo-50 text-indigo-700 border border-indigo-200"
+                : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+            }`}>
+              {settings.provider === "gemini" ? (
+                <Sparkles className="w-3 h-3" />
+              ) : (
+                <Cpu className="w-3 h-3" />
+              )}
+              {activeProvider.label}
+            </span>
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
               系統狀態：正常
@@ -277,18 +316,95 @@ export default function App() {
                   setTranscript(e.target.value);
                   if (errorMsg) setErrorMsg(null);
                 }}
-                placeholder="請在此貼上會議的原始逐字稿內容，例如：&#10;王小明：今天我們討論關於 Q3 的產品藍圖...&#10;李美美：我認為我們應該優先處理移動端的效能優化..."
+                placeholder={`請在此貼上會議的原始逐字稿內容，例如：\n王小明：今天我們討論關於 Q3 的產品藍圖...\n李美美：我認為我們應該優先處理移動端的效能優化...`}
                 className="w-full rounded-xl border-none bg-white py-1.5 px-2 text-[14.5px] leading-relaxed text-slate-600 focus:outline-none focus:ring-0 placeholder-slate-300 resize-none min-h-[310px]"
               />
             </div>
 
-            {/* Custom Settings Config Container */}
-            <div className="border-t border-slate-100 p-6 bg-slate-50/50 space-y-4">
+            {/* Settings Config Container */}
+            <div className="border-t border-slate-100 p-6 bg-slate-50/50 space-y-5">
               <div className="flex items-center gap-2 mb-1">
                 <Sliders className="w-4 h-4 text-slate-600" />
                 <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">智慧分析與翻譯設定</span>
               </div>
 
+              {/* ── AI 服務商選擇 ── */}
+              <div className="space-y-2">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                  0. AI 服務商選擇
+                </span>
+                <div id="provider-selector" className="grid grid-cols-2 gap-2.5">
+                  {AI_PROVIDERS.map((p) => {
+                    const isActive = settings.provider === p.id;
+                    return (
+                      <button
+                        key={p.id}
+                        id={`provider-btn-${p.id}`}
+                        onClick={() => setSettings({ ...settings, provider: p.id })}
+                        className={`relative flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all duration-200 cursor-pointer group ${
+                          isActive
+                            ? p.id === "gemini"
+                              ? "border-indigo-500 bg-indigo-50 shadow-sm shadow-indigo-100"
+                              : "border-emerald-500 bg-emerald-50 shadow-sm shadow-emerald-100"
+                            : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/70"
+                        }`}
+                      >
+                        {/* Icon */}
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${
+                          isActive
+                            ? p.id === "gemini"
+                              ? "bg-indigo-600 text-white"
+                              : "bg-emerald-600 text-white"
+                            : "bg-slate-100 text-slate-400 group-hover:bg-slate-200"
+                        }`}>
+                          {p.id === "gemini" ? (
+                            <Sparkles className="w-4 h-4" />
+                          ) : (
+                            <Cpu className="w-4 h-4" />
+                          )}
+                        </div>
+
+                        {/* Labels */}
+                        <div className="min-w-0 flex-1">
+                          <p className={`text-[12px] font-bold leading-none mb-0.5 ${
+                            isActive
+                              ? p.id === "gemini" ? "text-indigo-700" : "text-emerald-700"
+                              : "text-slate-700"
+                          }`}>
+                            {p.label}
+                          </p>
+                          <p className={`text-[10px] font-medium leading-none ${
+                            isActive
+                              ? p.id === "gemini" ? "text-indigo-400" : "text-emerald-500"
+                              : "text-slate-400"
+                          }`}>
+                            {p.sublabel}
+                          </p>
+                          <p className={`text-[9px] font-mono mt-1 leading-none ${
+                            isActive
+                              ? p.id === "gemini" ? "text-indigo-300" : "text-emerald-400"
+                              : "text-slate-300"
+                          }`}>
+                            {p.model}
+                          </p>
+                        </div>
+
+                        {/* Active indicator dot */}
+                        {isActive && (
+                          <motion.div
+                            layoutId="provider-active-dot"
+                            className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                              p.id === "gemini" ? "bg-indigo-500" : "bg-emerald-500"
+                            }`}
+                          />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Existing 3 dropdowns */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 
                 {/* 1. Output Style */}
@@ -355,24 +471,35 @@ export default function App() {
             {/* Huge dynamic submit button */}
             <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-center">
               <button
+                id="generate-btn"
                 onClick={handleGenerate}
                 disabled={isLoading}
-                className={`w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-lg shadow-indigo-200 transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                  isLoading ? "opacity-75 cursor-not-allowed" : ""
-                }`}
+                className={`w-full py-3 rounded-xl font-bold shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  settings.provider === "gemini"
+                    ? "bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200 text-white"
+                    : "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200 text-white"
+                } ${isLoading ? "opacity-75 cursor-not-allowed" : ""}`}
               >
                 {isLoading ? (
                   <>
                     <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
-                    <span>正在生成分析中...</span>
+                    <span>
+                      {settings.provider === "gemini" ? "Gemini" : "NVIDIA"} 分析中...
+                    </span>
                   </>
                 ) : (
                   <>
-                    <Sparkles className="w-4 h-4 text-white" />
-                    <span>立即生成總結與翻譯</span>
+                    {settings.provider === "gemini" ? (
+                      <Sparkles className="w-4 h-4 text-white" />
+                    ) : (
+                      <Zap className="w-4 h-4 text-white" />
+                    )}
+                    <span>
+                      使用 {activeProvider.label} 生成總結
+                    </span>
                   </>
                 )}
               </button>
@@ -395,16 +522,26 @@ export default function App() {
                 className="bg-white border border-slate-200 rounded-2xl p-8 min-h-[580px] shadow-sm flex flex-col items-center justify-center text-center gap-6"
               >
                 <div className="relative">
-                  {/* Premium spinning circles */}
-                  <div className="w-16 h-16 rounded-full border-4 border-slate-50 border-t-indigo-600 animate-spin" />
-                  <div className="absolute inset-0 w-16 h-16 rounded-full border-4 border-slate-100 border-b-indigo-400 rotate-45 animate-spin duration-1000" />
+                  {/* Premium spinning circles - color matches provider */}
+                  <div className={`w-16 h-16 rounded-full border-4 border-slate-50 animate-spin ${
+                    settings.provider === "gemini" ? "border-t-indigo-600" : "border-t-emerald-600"
+                  }`} />
+                  <div className={`absolute inset-0 w-16 h-16 rounded-full border-4 border-slate-100 rotate-45 animate-spin duration-1000 ${
+                    settings.provider === "gemini" ? "border-b-indigo-400" : "border-b-emerald-400"
+                  }`} />
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <Sparkles className="w-6 h-6 text-indigo-400 animate-pulse" />
+                    {settings.provider === "gemini" ? (
+                      <Sparkles className="w-6 h-6 text-indigo-400 animate-pulse" />
+                    ) : (
+                      <Cpu className="w-6 h-6 text-emerald-400 animate-pulse" />
+                    )}
                   </div>
                 </div>
 
                 <div className="space-y-2 max-w-sm">
-                  <p className="font-bold text-slate-800 text-base tracking-tight">AI 智能分析中</p>
+                  <p className="font-bold text-slate-800 text-base tracking-tight">
+                    {activeProvider.label} 智能分析中
+                  </p>
                   
                   {/* Multi-step loading messages with animation */}
                   <div className="h-6 overflow-hidden">
@@ -414,7 +551,9 @@ export default function App() {
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -15 }}
                       transition={{ duration: 0.3 }}
-                      className="text-xs text-indigo-600 font-semibold leading-relaxed tracking-wide"
+                      className={`text-xs font-semibold leading-relaxed tracking-wide ${
+                        settings.provider === "gemini" ? "text-indigo-600" : "text-emerald-600"
+                      }`}
                     >
                       {loadingMessages[loadingStep]}
                     </motion.p>
@@ -440,6 +579,21 @@ export default function App() {
                   <div className="flex items-center gap-2">
                     <span className="w-2 h-2 bg-emerald-400 rounded-full"></span>
                     <span className="text-sm font-semibold text-slate-700">AI 生成結果</span>
+                    {/* Provider badge on result */}
+                    {response.provider && (
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        response.provider === "gemini"
+                          ? "bg-indigo-100 text-indigo-600"
+                          : "bg-emerald-100 text-emerald-600"
+                      }`}>
+                        {response.provider === "gemini" ? (
+                          <Sparkles className="w-2.5 h-2.5" />
+                        ) : (
+                          <Cpu className="w-2.5 h-2.5" />
+                        )}
+                        {response.provider === "gemini" ? "Gemini" : "NVIDIA"}
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     
@@ -549,8 +703,8 @@ export default function App() {
         <div>© 2026 INTELLIMEET TECHNOLOGY</div>
         <div className="flex gap-6 select-none">
           <span>API 狀態：運作正常</span>
-          <span>延遲：240ms</span>
-          <span>Version 3.5.0-Release</span>
+          <span>AI：{activeProvider.label}</span>
+          <span>Version 4.0.0-Vercel</span>
         </div>
       </footer>
     </div>
