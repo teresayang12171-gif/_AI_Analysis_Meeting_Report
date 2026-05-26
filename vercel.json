@@ -1,4 +1,5 @@
 {
+  "name": "ai-analysis-meeting-report",
   "buildCommand": "vite build",
   "outputDirectory": "dist",
   "framework": "vite",
